@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', sans-serif;
+      color: #eee;
+    }
+    h1 { margin-bottom: 20px; font-size: 2rem; letter-spacing: 2px; }
+
+    /* Mode selection screen */
+    #mode-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    #mode-screen p {
+      font-size: 1.1rem;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+    .mode-buttons {
+      display: flex;
+      gap: 20px;
+    }
+    .mode-btn {
+      padding: 16px 40px;
+      font-size: 1.1rem;
+      background: #0f3460;
+      color: #eee;
+      border: 2px solid #0f3460;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .mode-btn:hover { background: #e94560; border-color: #e94560; }
+    .mode-btn .key-hint {
+      display: block;
+      font-size: 0.75rem;
+      color: #aaa;
+      margin-top: 6px;
+    }
+    .mode-btn:hover .key-hint { color: #eee; }
+
+    /* Game screen */
+    #game-screen { display: none; flex-direction: column; align-items: center; }
+
+    /* Scoreboard */
+    #scoreboard {
+      display: flex;
+      gap: 40px;
+      margin-bottom: 12px;
+      font-size: 1.1rem;
+    }
+    .player-score { display: flex; align-items: center; gap: 8px; }
+    .score-dot {
+      width: 14px; height: 14px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+    .score-dot.p1 { background: #4ecca3; }
+    .score-dot.p2 { background: #4fa3e0; }
+
+    canvas {
+      border: 2px solid #0f3460;
+      background: #16213e;
+      display: block;
+      position: relative;
+    }
+
+    #solo-score {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+    }
+
+    #message {
+      margin-top: 14px;
+      font-size: 1.05rem;
+      color: #e94560;
+      min-height: 1.5em;
+      text-align: center;
+    }
+
+    .btn {
+      margin-top: 14px;
+      padding: 10px 28px;
+      font-size: 1rem;
+      background: #0f3460;
+      color: #eee;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #e94560; }
+
+    /* Game Over overlay */
+    #overlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.72);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0;
+    }
+    #overlay.active { display: flex; }
+    #overlay-title {
+      font-size: 1.8rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #eee;
+    }
+    #overlay-sub {
+      font-size: 1.1rem;
+      color: #aaa;
+      margin-bottom: 20px;
+    }
+    #overlay-play-again {
+      padding: 10px 32px;
+      font-size: 1rem;
+      background: #0f3460;
+      color: #eee;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #overlay-play-again:hover { background: #e94560; }
+
+    .canvas-wrap {
+      position: relative;
+      display: inline-block;
+    }
+
+    /* Controls hint */
+    #controls-hint {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: #666;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Snake</h1>
+
+  <!-- Mode Selection -->
+  <div id="mode-screen">
+    <p>Choose a game mode</p>
+    <div class="mode-buttons">
+      <button class="mode-btn" id="btn-solo">
+        Solo
+        <span class="key-hint">Arrow keys</span>
+      </button>
+      <button class="mode-btn" id="btn-multi">
+        Multiplayer
+        <span class="key-hint">WASD &amp; Arrow keys</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen">
+    <div id="solo-score">Score: 0</div>
+
+    <div id="scoreboard">
+      <div class="player-score">
+        <span class="score-dot p1"></span>
+        <span id="score-p1">P1: 0</span>
+      </div>
+      <div class="player-score">
+        <span class="score-dot p2"></span>
+        <span id="score-p2">P2: 0</span>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="400" height="400"></canvas>
+      <div id="overlay">
+        <div id="overlay-title"></div>
+        <div id="overlay-sub"></div>
+        <button id="overlay-play-again">Play Again</button>
+      </div>
+    </div>
+
+    <div id="message">Press an arrow key to start</div>
+    <div id="controls-hint"></div>
+    <button class="btn" id="btn-back">Back to Menu</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const CELL = 20;
+    const COLS = canvas.width / CELL;
+    const ROWS = canvas.height / CELL;
+
+    let mode = null; // 'solo' | 'multi'
+    let gameLoop = null;
+
+    // --- Solo state ---
+    let snake, dir, nextDir, food, score, running;
+
+    // --- Multi state ---
+    let p1, p2, mFood, mRunning;
+
+    // DOM refs
+    const modeScreen   = document.getElementById('mode-screen');
+    const gameScreen   = document.getElementById('game-screen');
+    const soloScoreEl  = document.getElementById('solo-score');
+    const scoreboard   = document.getElementById('scoreboard');
+    const scoreP1El    = document.getElementById('score-p1');
+    const scoreP2El    = document.getElementById('score-p2');
+    const messageEl    = document.getElementById('message');
+    const controlsHint = document.getElementById('controls-hint');
+    const overlay      = document.getElementById('overlay');
+    const overlayTitle = document.getElementById('overlay-title');
+    const overlaySub   = document.getElementById('overlay-sub');
+
+    // ── Mode selection ──────────────────────────────────────────────────────
+    document.getElementById('btn-solo').addEventListener('click', () => startMode('solo'));
+    document.getElementById('btn-multi').addEventListener('click', () => startMode('multi'));
+    document.getElementById('btn-back').addEventListener('click', backToMenu);
+    document.getElementById('overlay-play-again').addEventListener('click', restartCurrent);
+
+    function startMode(m) {
+      mode = m;
+      modeScreen.style.display = 'none';
+      gameScreen.style.display = 'flex';
+
+      if (mode === 'solo') {
+        soloScoreEl.style.display = 'block';
+        scoreboard.style.display = 'none';
+        controlsHint.textContent = 'Arrow keys to move';
+        initSolo();
+      } else {
+        soloScoreEl.style.display = 'none';
+        scoreboard.style.display = 'flex';
+        controlsHint.textContent = 'P1: WASD  |  P2: Arrow keys';
+        initMulti();
+      }
+    }
+
+    function backToMenu() {
+      if (gameLoop) clearInterval(gameLoop);
+      gameLoop = null;
+      overlay.classList.remove('active');
+      gameScreen.style.display = 'none';
+      modeScreen.style.display = 'flex';
+      mode = null;
+    }
+
+    function restartCurrent() {
+      overlay.classList.remove('active');
+      if (mode === 'solo') initSolo();
+      else initMulti();
+    }
+
+    // ── Solo Mode ───────────────────────────────────────────────────────────
+    function initSolo() {
+      snake = [{ x: 10, y: 10 }];
+      dir = { x: 0, y: 0 };
+      nextDir = { x: 0, y: 0 };
+      score = 0;
+      running = false;
+      soloScoreEl.textContent = 'Score: 0';
+      messageEl.textContent = 'Press an arrow key to start';
+      placeFoodSolo();
+      if (gameLoop) clearInterval(gameLoop);
+      gameLoop = setInterval(tickSolo, 120);
+      drawSolo();
+    }
+
+    function placeFoodSolo() {
+      let pos;
+      do {
+        pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+      } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+      food = pos;
+    }
+
+    function tickSolo() {
+      if (!running) return;
+      dir = { ...nextDir };
+      const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+      if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+        return endSolo();
+      }
+      if (snake.some(s => s.x === head.x && s.y === head.y)) {
+        return endSolo();
+      }
+
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        score++;
+        soloScoreEl.textContent = `Score: ${score}`;
+        placeFoodSolo();
+      } else {
+        snake.pop();
+      }
+      drawSolo();
+    }
+
+    function drawSolo() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#e94560';
+      ctx.beginPath();
+      ctx.arc(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2, CELL / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      snake.forEach((seg, i) => {
+        ctx.fillStyle = i === 0 ? '#4ecca3' : '#218c74';
+        ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
+      });
+    }
+
+    function endSolo() {
+      running = false;
+      clearInterval(gameLoop);
+      gameLoop = null;
+      messageEl.textContent = '';
+      showOverlay('Game Over', `Final score: ${score}`);
+    }
+
+    // ── Multiplayer Mode ────────────────────────────────────────────────────
+    function makePlayer(x, y, dx, dy) {
+      return { snake: [{ x, y }], dir: { x: dx, y: dy }, nextDir: { x: dx, y: dy }, score: 0, alive: true };
+    }
+
+    function initMulti() {
+      p1 = makePlayer(6, 10, 1, 0);
+      p2 = makePlayer(13, 10, -1, 0);
+      mRunning = false;
+      scoreP1El.textContent = 'P1: 0';
+      scoreP2El.textContent = 'P2: 0';
+      messageEl.textContent = 'P1: press WASD  |  P2: press Arrow keys';
+      placeFoodMulti();
+      if (gameLoop) clearInterval(gameLoop);
+      gameLoop = setInterval(tickMulti, 120);
+      drawMulti();
+    }
+
+    function placeFoodMulti() {
+      let pos;
+      do {
+        pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+      } while (
+        p1.snake.some(s => s.x === pos.x && s.y === pos.y) ||
+        p2.snake.some(s => s.x === pos.x && s.y === pos.y)
+      );
+      mFood = pos;
+    }
+
+    function tickMulti() {
+      if (!mRunning) return;
+
+      // Apply next directions
+      p1.dir = { ...p1.nextDir };
+      p2.dir = { ...p2.nextDir };
+
+      const h1 = { x: p1.snake[0].x + p1.dir.x, y: p1.snake[0].y + p1.dir.y };
+      const h2 = { x: p2.snake[0].x + p2.dir.x, y: p2.snake[0].y + p2.dir.y };
+
+      // Check wall collisions
+      const p1Wall = h1.x < 0 || h1.x >= COLS || h1.y < 0 || h1.y >= ROWS;
+      const p2Wall = h2.x < 0 || h2.x >= COLS || h2.y < 0 || h2.y >= ROWS;
+
+      // Check self-collisions
+      const p1Self = p1.snake.some(s => s.x === h1.x && s.y === h1.y);
+      const p2Self = p2.snake.some(s => s.x === h2.x && s.y === h2.y);
+
+      // Check cross-body collisions (head into other snake's body)
+      const p1HitsP2Body = p2.snake.some(s => s.x === h1.x && s.y === h1.y);
+      const p2HitsP1Body = p1.snake.some(s => s.x === h2.x && s.y === h2.y);
+
+      // Head-on collision
+      const headOn = h1.x === h2.x && h1.y === h2.y;
+
+      const p1Dies = p1Wall || p1Self || p1HitsP2Body || headOn;
+      const p2Dies = p2Wall || p2Self || p2HitsP1Body || headOn;
+
+      if (p1Dies || p2Dies) {
+        clearInterval(gameLoop);
+        gameLoop = null;
+        mRunning = false;
+
+        // Advance both snakes so the final collision frame is drawn
+        if (!p1Dies) {
+          p1.snake.unshift(h1);
+          p1.snake.pop();
+        }
+        if (!p2Dies) {
+          p2.snake.unshift(h2);
+          p2.snake.pop();
+        }
+        drawMulti();
+
+        if (p1Dies && p2Dies) {
+          showOverlay("It's a Draw!", 'Both snakes collided');
+        } else if (p1Dies) {
+          showOverlay('Player 2 Wins!', `P1: ${p1.score}  |  P2: ${p2.score}`);
+        } else {
+          showOverlay('Player 1 Wins!', `P1: ${p1.score}  |  P2: ${p2.score}`);
+        }
+        return;
+      }
+
+      // Move both snakes
+      p1.snake.unshift(h1);
+      p2.snake.unshift(h2);
+
+      // Food eating
+      let ate = false;
+      if (h1.x === mFood.x && h1.y === mFood.y) {
+        p1.score++;
+        scoreP1El.textContent = `P1: ${p1.score}`;
+        ate = true;
+      } else {
+        p1.snake.pop();
+      }
+      if (h2.x === mFood.x && h2.y === mFood.y) {
+        p2.score++;
+        scoreP2El.textContent = `P2: ${p2.score}`;
+        ate = true;
+      } else if (!ate) {
+        p2.snake.pop();
+      } else {
+        // P1 already ate it, P2 also ate — p2 tail was already not popped because ate=true
+        // Correct: pop p2 tail since p2 didn't eat this tick
+        p2.snake.pop();
+      }
+
+      if (ate) placeFoodMulti();
+
+      drawMulti();
+    }
+
+    function drawMulti() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Food
+      ctx.fillStyle = '#e94560';
+      ctx.beginPath();
+      ctx.arc(mFood.x * CELL + CELL / 2, mFood.y * CELL + CELL / 2, CELL / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // P1 snake (green)
+      p1.snake.forEach((seg, i) => {
+        ctx.fillStyle = i === 0 ? '#4ecca3' : '#218c74';
+        ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
+      });
+
+      // P2 snake (blue)
+      p2.snake.forEach((seg, i) => {
+        ctx.fillStyle = i === 0 ? '#4fa3e0' : '#1a6fa8';
+        ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
+      });
+    }
+
+    // ── Overlay ─────────────────────────────────────────────────────────────
+    function showOverlay(title, sub) {
+      overlayTitle.textContent = title;
+      overlaySub.textContent = sub;
+      overlay.classList.add('active');
+      messageEl.textContent = '';
+    }
+
+    // ── Key handling ────────────────────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      if (mode === 'solo') {
+        const moves = {
+          ArrowUp:    { x: 0,  y: -1 },
+          ArrowDown:  { x: 0,  y:  1 },
+          ArrowLeft:  { x: -1, y:  0 },
+          ArrowRight: { x: 1,  y:  0 },
+        };
+        if (!moves[e.key]) return;
+        e.preventDefault();
+        const m = moves[e.key];
+        if (m.x === -dir.x && m.y === -dir.y) return;
+        nextDir = m;
+        if (!running) {
+          running = true;
+          messageEl.textContent = '';
+        }
+      } else if (mode === 'multi') {
+        const wasd = {
+          w: { x: 0, y: -1 },
+          s: { x: 0, y:  1 },
+          a: { x: -1, y: 0 },
+          d: { x: 1,  y: 0 },
+        };
+        const arrows = {
+          ArrowUp:    { x: 0,  y: -1 },
+          ArrowDown:  { x: 0,  y:  1 },
+          ArrowLeft:  { x: -1, y:  0 },
+          ArrowRight: { x: 1,  y:  0 },
+        };
+
+        const lk = e.key.toLowerCase();
+        if (wasd[lk]) {
+          e.preventDefault();
+          const m = wasd[lk];
+          if (!(m.x === -p1.dir.x && m.y === -p1.dir.y)) p1.nextDir = m;
+          tryStartMulti();
+        } else if (arrows[e.key]) {
+          e.preventDefault();
+          const m = arrows[e.key];
+          if (!(m.x === -p2.dir.x && m.y === -p2.dir.y)) p2.nextDir = m;
+          tryStartMulti();
+        }
+      }
+    });
+
+    function tryStartMulti() {
+      if (!mRunning) {
+        mRunning = true;
+        messageEl.textContent = '';
+      }
+    }
+  </script>
+</body>
+</html>
