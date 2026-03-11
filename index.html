@@ -270,6 +270,7 @@ let mode = 'solo'; // 'solo' | 'vsai'
 let difficulty = 'medium';
 let gameLoop = null;
 let gameState = {};
+let paused = false;
 
 // ─── Screens ─────────────────────────────────────────────────────────────────
 
@@ -367,6 +368,35 @@ function initGame() {
 
 function stopGame() {
   if (gameLoop) { clearInterval(gameLoop); gameLoop = null; }
+  paused = false;
+}
+
+function togglePause() {
+  if (!gameLoop && !paused) return; // no active game
+  paused = !paused;
+  if (paused) {
+    clearInterval(gameLoop);
+    gameLoop = null;
+    drawPaused();
+  } else {
+    const speed = mode === 'solo' ? 120 : gameState.baseSpeed;
+    const tick = mode === 'solo' ? tickSolo : tickVsAI;
+    gameLoop = setInterval(tick, speed);
+  }
+}
+
+function drawPaused() {
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 48px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PAUSED', W / 2, H / 2);
+  ctx.restore();
 }
 
 // ─── Input ────────────────────────────────────────────────────────────────────
@@ -379,6 +409,12 @@ const KEY_MAP = {
 };
 
 document.addEventListener('keydown', e => {
+  if (e.key === ' ') {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
+  if (paused) return;
   const d = KEY_MAP[e.key];
   if (!d) return;
   e.preventDefault();
