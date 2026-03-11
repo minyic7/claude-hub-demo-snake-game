@@ -232,8 +232,9 @@
         <span class="score-value score-ai" id="score-ai">0</span>
       </div>
     </div>
-    <div id="solo-score" style="display:none; font-size:1rem; color:#888; letter-spacing:1px">
-      Score: <span id="score-solo" class="score-solo" style="font-size:1.4rem; font-weight:700; color:#4ade80">0</span>
+    <div id="solo-score" style="display:none; font-size:1rem; color:#888; letter-spacing:1px; gap:32px; justify-content:center; align-items:center">
+      <span>Score: <span id="score-solo" class="score-solo" style="font-size:1.4rem; font-weight:700; color:#4ade80">0</span></span>
+      <span>High Score: <span id="score-high" style="font-size:1.4rem; font-weight:700; color:#facc15">0</span></span>
     </div>
     <canvas id="canvas"></canvas>
     <div style="font-size:0.75rem; color:#444; letter-spacing:1px">ARROW KEYS TO MOVE</div>
@@ -254,6 +255,10 @@
 </div>
 
 <script>
+const HS_KEY = 'snakeHighScore';
+function getHighScore() { return parseInt(localStorage.getItem(HS_KEY) || '0', 10); }
+function saveHighScore(s) { localStorage.setItem(HS_KEY, s); }
+
 const CELL = 20;
 const COLS = 30;
 const ROWS = 24;
@@ -292,7 +297,8 @@ function selectDiff(d) {
 function startSolo() {
   mode = 'solo';
   document.getElementById('scoreboard').classList.remove('visible');
-  document.getElementById('solo-score').style.display = 'block';
+  document.getElementById('solo-score').style.display = 'flex';
+  document.getElementById('score-high').textContent = getHighScore();
   showScreen('game');
   initGame();
 }
@@ -469,7 +475,15 @@ function tickSolo() {
 
 function endSolo() {
   stopGame();
-  showOverlay('GAME OVER', 'Score: ' + gameState.score, 'gameover');
+  const score = gameState.score;
+  const prev = getHighScore();
+  let sub = 'Score: ' + score;
+  if (score > prev) {
+    saveHighScore(score);
+    document.getElementById('score-high').textContent = score;
+    sub += ' — New High Score!';
+  }
+  showOverlay('GAME OVER', sub, 'gameover');
 }
 
 function updateSoloScore(s) {
@@ -741,10 +755,13 @@ function drawScoreBar(leftLabel, leftVal, rightLabel, rightVal) {
   ctx.font = 'bold 14px monospace';
   ctx.textBaseline = 'middle';
   if (rightLabel === undefined) {
-    // Solo: centered score
+    // Solo: score left, high score right
     ctx.fillStyle = '#4ade80';
-    ctx.textAlign = 'center';
-    ctx.fillText(leftLabel + leftVal, W / 2, barH / 2);
+    ctx.textAlign = 'left';
+    ctx.fillText(leftLabel + leftVal, 10, barH / 2);
+    ctx.fillStyle = '#facc15';
+    ctx.textAlign = 'right';
+    ctx.fillText('Best: ' + getHighScore(), W - 10, barH / 2);
   } else {
     // VS AI: player left, AI right
     ctx.fillStyle = '#4ade80';
