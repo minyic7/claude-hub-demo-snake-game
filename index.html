@@ -422,7 +422,7 @@ function tickSolo() {
 
   g.snake.unshift(head);
   if (head.x === g.food.x && head.y === g.food.y) {
-    g.score++;
+    g.score += 10;
     updateSoloScore(g.score);
     g.food = spawnFood([g.snake]);
   } else {
@@ -459,8 +459,8 @@ function tickVsAI() {
   let pGrow = false, aiGrow = false;
 
   // Check food collision before moving
-  if (pHead && pHead.x === g.food.x && pHead.y === g.food.y) { pGrow = true; p.score++; }
-  if (aiHead && aiHead.x === g.food.x && aiHead.y === g.food.y) { aiGrow = true; ai.score++; }
+  if (pHead && pHead.x === g.food.x && pHead.y === g.food.y) { pGrow = true; p.score += 10; }
+  if (aiHead && aiHead.x === g.food.x && aiHead.y === g.food.y) { aiGrow = true; ai.score += 10; }
 
   // Move snakes (tentatively)
   if (p.alive) {
@@ -698,10 +698,35 @@ function drawFood(food) {
   ctx.fill();
 }
 
+function drawScoreBar(leftLabel, leftVal, rightLabel, rightVal) {
+  const barH = 28;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, W, barH);
+  ctx.font = 'bold 14px monospace';
+  ctx.textBaseline = 'middle';
+  if (rightLabel === undefined) {
+    // Solo: centered score
+    ctx.fillStyle = '#4ade80';
+    ctx.textAlign = 'center';
+    ctx.fillText(leftLabel + leftVal, W / 2, barH / 2);
+  } else {
+    // VS AI: player left, AI right
+    ctx.fillStyle = '#4ade80';
+    ctx.textAlign = 'left';
+    ctx.fillText(leftLabel + leftVal, 10, barH / 2);
+    ctx.fillStyle = '#60a5fa';
+    ctx.textAlign = 'right';
+    ctx.fillText(rightLabel + rightVal, W - 10, barH / 2);
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+}
+
 function drawSolo() {
   drawGrid();
   drawFood(gameState.food);
   drawSnake(gameState.snake, '#4ade80', '#166534');
+  drawScoreBar('Score: ', gameState.score);
 }
 
 function drawVsAI() {
@@ -709,6 +734,7 @@ function drawVsAI() {
   drawFood(gameState.food);
   if (gameState.ai.alive) drawSnake(gameState.ai.body, '#60a5fa', '#1e3a5f');
   if (gameState.player.alive) drawSnake(gameState.player.body, '#4ade80', '#166534');
+  drawScoreBar('You: ', gameState.player.score, 'AI: ', gameState.ai.score);
 }
 
 // ─── Overlay ──────────────────────────────────────────────────────────────────
