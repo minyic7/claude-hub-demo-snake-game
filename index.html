@@ -557,6 +557,13 @@ function getAIDir() {
   for (let i = 1; i < ai.body.length; i++) obstacles.add(ai.body[i].x + ',' + ai.body[i].y);
   for (const s of g.player.body) obstacles.add(s.x + ',' + s.y);
 
+  // Treat player's predicted next position as an obstacle to avoid head collisions
+  const playerNextX = g.player.body[0].x + g.player.dir.x;
+  const playerNextY = g.player.body[0].y + g.player.dir.y;
+  if (playerNextX >= 0 && playerNextX < COLS && playerNextY >= 0 && playerNextY < ROWS) {
+    obstacles.add(playerNextX + ',' + playerNextY);
+  }
+
   // Random move chance based on difficulty
   const randChance = { easy: 0.40, medium: 0.15, hard: 0.0 }[difficulty];
 
@@ -568,21 +575,49 @@ function getAIDir() {
   }
 
   if (!bestDir) {
-    // Fallback: pick a valid direction (not reversing)
-    const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
-    const shuffled = dirs.sort(() => Math.random() - 0.5);
-    for (const d of shuffled) {
-      if (isOpposite(d, ai.dir)) continue;
-      const nx = head.x + d.x, ny = head.y + d.y;
-      if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && !obstacles.has(nx + ',' + ny)) {
-        bestDir = d;
-        break;
-      }
-    }
+    // Fallback: pick the direction with the most open space (flood fill)
+    bestDir = safestDir(head, ai.dir, obstacles);
   }
 
   // Last resort: continue current direction (will likely die but avoids instant reverse)
   return bestDir || ai.dir;
+}
+
+function floodFill(startX, startY, obstacles) {
+  const key = (x, y) => x + ',' + y;
+  const visited = new Set([key(startX, startY)]);
+  const queue = [{ x: startX, y: startY }];
+  const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+  while (queue.length > 0) {
+    const { x, y } = queue.shift();
+    for (const d of dirs) {
+      const nx = x + d.x, ny = y + d.y;
+      const k = key(nx, ny);
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (obstacles.has(k) || visited.has(k)) continue;
+      visited.add(k);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return visited.size;
+}
+
+function safestDir(head, currentDir, obstacles) {
+  const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+  let bestDir = null;
+  let bestSpace = -1;
+  for (const d of dirs) {
+    if (isOpposite(d, currentDir)) continue;
+    const nx = head.x + d.x, ny = head.y + d.y;
+    if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+    if (obstacles.has(nx + ',' + ny)) continue;
+    const space = floodFill(nx, ny, obstacles);
+    if (space > bestSpace) {
+      bestSpace = space;
+      bestDir = d;
+    }
+  }
+  return bestDir;
 }
 
 function bfsToFood(head, food, obstacles, currentDir) {
